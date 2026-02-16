@@ -1,13 +1,8 @@
-# Agentic Development Framework
-
-**Software development in the LLM era: From idea to production with agent-driven planning and implementation.**
+# Spec Pipeline Template
 
 ## What This Is
 
-A template repository that orchestrates LLM agents to:
-1. **Plan** your application (PRD → refinement → specs)
-2. **Implement** your application (specs → code)
-3. **Evolve** your application (new features, breaking changes)
+A template repository that orchestrates LLM prompts to: Plan your application (PRD → refinement → specs)
 
 All artifacts live in Git. All workflows are automated. Humans review and approve at key gates.
 
@@ -17,7 +12,7 @@ All artifacts live in Git. All workflows are automated. Humans review and approv
 
 ```bash
 # Create your app from this template
-gh repo create my-org/my-app --template my-org/agentic-framework --private
+gh repo create my-org/my-app --template utterlyforked/spec-pipeline-template --private
 
 cd my-app
 ```
@@ -56,6 +51,7 @@ The orchestrator will automatically:
 - If you're happy with the summary of the feature breakdown and refinement create a '.approved' file in the docs/03-refinement directory and commit
 - The Foundation Architect → analyzes common elements and identifies a spec-0 for all common functionality
 - The Security Agent and QA agent will then asses the overall project
+- The judge will find inconsistencies 
 - The Engineering Spec agent → creates implementation specs
 
 Check the Actions tab in GitHub to watch progress.
@@ -103,6 +99,7 @@ Optionally customize agent behaviors in `agents/*/prompt.md`:
 - Engineering Spec detail level
 - QA 
 - APP Sec
+- Final Judge
 
 ## Reset 
 
@@ -111,10 +108,6 @@ Optionally customize agent behaviors in `agents/*/prompt.md`:
   git commit -m "reset: clear all generated docs and pipeline state"
   git push
 ```
-  
-## How It Works
-
-See [INTRODUCTION.md](./INTRODUCTION.md) for the full story.
 
 **Short version:**
 
@@ -167,8 +160,7 @@ agentic-framework/
 │   ├── run-judge.py                  # Generic judge runner
 │   └── state-manager.py              # State machine logic
 │
-├── claude.md                         # Instructions for Claude Code
-├── INTRODUCTION.md                   # Full framework explanation
+├── CLAUDE.md                         # Instructions for Claude Code
 ├── README.md                         # This file
 └── LICENSE
 ```
