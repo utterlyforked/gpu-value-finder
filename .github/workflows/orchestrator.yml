@@ -1,0 +1,106 @@
+name: Agentic Orchestrator
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+
+  workflow_dispatch:
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Job 1: Determine what tasks can run right now
+  # -------------------------------------------------------------------------
+  find-tasks:
+    runs-on: ubuntu-latest
+    outputs:
+      has_tasks: ${{ steps.find.outputs.has_tasks }}
+      tasks: ${{ steps.find.outputs.tasks }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.ORCHESTRATOR_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Find runnable tasks
+        id: find
+        run: python scripts/find-next-task.py >> $GITHUB_OUTPUT
+
+  # -------------------------------------------------------------------------
+  # Job 2: Run all runnable tasks in parallel (matrix)
+  # -------------------------------------------------------------------------
+  run-tasks:
+    needs: find-tasks
+    if: needs.find-tasks.outputs.has_tasks == 'true'
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false   # don't cancel other tasks if one fails
+      max-parallel: 2    # stay within Anthropic rate limits
+      matrix:
+        task: ${{ fromJSON(needs.find-tasks.outputs.tasks) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.ORCHESTRATOR_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install anthropic pyyaml
+
+      - name: Run task
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TASK_JSON: ${{ toJSON(matrix.task) }}
+        run: python scripts/run-task.py
+
+      - name: Commit and push results
+        run: |
+          git config user.name "Agentic Bot"
+          git config user.email "bot@agentic.dev"
+          git add docs/
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "agent(${{ matrix.task.agent }}): completed task ${{ matrix.task.id }}"
+          # Retry loop to handle parallel push conflicts
+          for i in 1 2 3 4 5; do
+            git pull --rebase && git push && break
+            echo "Push attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+
+  # -------------------------------------------------------------------------
+  # Status summary
+  # -------------------------------------------------------------------------
+  done:
+    needs: [find-tasks, run-tasks]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: All tasks complete
+        if: needs.find-tasks.outputs.has_tasks == 'false'
+        run: echo "🎉 Nothing left to run — either all complete or waiting at an approval gate."
+
+      - name: Batch complete
+        if: needs.find-tasks.outputs.has_tasks == 'true'
+        run: echo "✅ Batch complete. Push will trigger next round if tasks remain."

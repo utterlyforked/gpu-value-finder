@@ -1,0 +1,114 @@
+pipeline:
+
+  - id: prd-creation
+    type: single
+    agent: product-spec
+    task_id: prd-initial
+    output: docs/01-prd/prd-v1.0.md
+    input:
+      user_idea_file: docs/00-user-idea.md
+      iteration: 0
+
+  - id: prd-approval
+    type: gate
+    sentinel: docs/01-prd/.approved
+    message: "Review docs/01-prd/prd-v1.0.md then push docs/01-prd/.approved to continue"
+
+  - id: feature-breakdown
+    type: per-feature
+    agent: product-spec
+    task_id: "breakdown-{feature_id}"
+    output: "docs/02-features/{feature_id}-{feature_slug}.md"
+    input:
+      mode: feature-breakdown
+      prd_file: docs/01-prd/prd-v1.0.md
+
+  - id: feature-refinement
+    type: refinement-loop
+    max_iterations: 5
+    ready_signal: "READY FOR IMPLEMENTATION"
+    reviewer:
+      agent: tech-lead
+      task_id: "questions-{feature_id}-iter-{iteration}"
+      output: "docs/03-refinement/{feature_id}-{feature_slug}/questions-iter-{iteration}.md"
+    responder:
+      agent: product-spec
+      task_id: "refine-{feature_id}-iter-{iteration}"
+      output: "docs/03-refinement/{feature_id}-{feature_slug}/updated-v1.{iteration}.md"
+
+  - id: specs-approval
+    type: gate
+    sentinel: docs/03-refinement/.approved
+    message: "Review refined specs in docs/03-refinement/ then push docs/03-refinement/.approved to continue"
+
+  - id: foundation-analysis
+    type: single
+    agent: foundation-architect
+    task_id: foundation-analysis
+    output: docs/04-foundation/foundation-analysis.md
+    input:
+      feature_docs: "{{latest_feature_docs}}"
+
+  - id: post-foundation-reviews
+    type: parallel-group
+    tasks:
+      - agent: appsec
+        task_id: appsec-review
+        output: docs/04-foundation/appsec-review.md
+        input:
+          foundation_doc: docs/04-foundation/foundation-analysis.md
+          feature_docs: "{{latest_feature_docs}}"
+      - agent: qa
+        task_id: qa-review
+        output: docs/04-foundation/qa-review.md
+        input:
+          foundation_doc: docs/04-foundation/foundation-analysis.md
+          feature_docs: "{{latest_feature_docs}}"
+
+  - id: foundation-spec
+    type: single
+    agent: engineering-spec
+    task_id: spec-FOUNDATION
+    output: docs/05-specs/foundation-spec.md
+    input:
+      type: foundation
+      foundation_doc: docs/04-foundation/foundation-analysis.md
+      appsec_doc: docs/04-foundation/appsec-review.md
+      qa_doc: docs/04-foundation/qa-review.md
+
+  - id: engineering-specs
+    type: per-feature
+    agent: engineering-spec
+    task_id: "spec-{feature_id}"
+    output: "docs/05-specs/{feature_id}-{feature_slug}-spec.md"
+    input:
+      type: feature
+      feature_doc: "{{latest_feature_doc}}"
+      tech_lead_review: "{{latest_questions_file}}"
+      foundation_spec: docs/05-specs/foundation-spec.md
+      appsec_doc: docs/04-foundation/appsec-review.md
+      qa_doc: docs/04-foundation/qa-review.md
+
+  - id: spec-review
+    type: single
+    agent: spec-judge
+    task_id: spec-review
+    output: docs/05-specs/spec-review.md
+    input:
+      spec_files: "{{all_spec_files}}"
+
+  - id: spec-review-approval
+    type: gate
+    sentinel: docs/05-specs/.approved
+    message: "Review docs/05-specs/spec-review.md then push docs/05-specs/.approved to continue"
+
+  - id: implementation-guide
+    type: single
+    agent: implementation-guide
+    task_id: implementation-guide
+    output: docs/06-implementation/CLAUDE.md
+    input:
+      prd_file: docs/01-prd/prd-v1.0.md
+      foundation_doc: docs/04-foundation/foundation-analysis.md
+      appsec_doc: docs/04-foundation/appsec-review.md
+      spec_files: "{{all_spec_files}}"
