@@ -106,9 +106,10 @@ pipeline:
     type: single
     agent: implementation-guide
     task_id: implementation-guide
-    output: docs/06-implementation/CLAUDE.md
+    output: CLAUDE.md
     input:
       prd_file: docs/01-prd/prd-v1.0.md
       foundation_doc: docs/04-foundation/foundation-analysis.md
       appsec_doc: docs/04-foundation/appsec-review.md
+      qa_doc: docs/04-foundation/qa-review.md
       spec_files: "{{all_spec_files}}"
